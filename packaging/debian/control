@@ -1,0 +1,14 @@
+Source: ooguard
+Section: utils
+Priority: optional
+Maintainer: openOODA-tools <ops@openooda.org>
+Standards-Version: 4.6.2
+Build-Depends: debhelper-compat (= 13)
+
+Package: ooguard
+Architecture: amd64
+Depends: libc6
+Description: AGENT GUARDRAIL
+ Prompt injection and destructive command guardrail filtering agent tool arguments.
+ Capability-bounded openOODA utility with zero ambient authority,
+ oote theme palettes, and native Model Context Protocol (MCP) surface.
