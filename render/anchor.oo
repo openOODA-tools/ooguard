@@ -1,0 +1,38 @@
+// # Render Subsystem Anchor
+//
+// Logline: Consolidates and verifies security report formatters, JSON serializers, and demo showcase.
+//
+// Setup: Pure anchor module validating visual report presentation and JSON encoding.
+//
+// Beats:
+//   1. Re-export terminal report formatter and rules table renderer.
+//   2. Re-export structured JSON telemetry serializer.
+//   3. Re-export interactive multi-vector security showcase.
+//   4. Validate rendering invariants and report formatting through self-test.
+
+import "core/guard_types.oo";
+import "render_report.oo";
+import "render_json.oo";
+import "render_demo.oo";
+
+pub fn verify_render_subsystem() -> Bool {
+    let dummy_viol: List[ViolationRecord] = list_new();
+    let res: InspectionResult = make_inspection_result(true, "SAFE", 0, dummy_viol, "clean text");
+
+    let rep: String = render_inspection_report(res, false);
+    if chars_len(rep) == 0 {
+        return false;
+    }
+
+    let j: String = inspection_to_json(res);
+    if chars_len(j) == 0 {
+        return false;
+    }
+
+    let demo: String = render_guard_demo(false);
+    if chars_len(demo) == 0 {
+        return false;
+    }
+
+    return true;
+}

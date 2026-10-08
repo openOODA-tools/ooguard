@@ -1,0 +1,77 @@
+// # JSON Formatters and Security Telemetry Serializer
+//
+// Logline: Serializes guardrail verdicts, violation lists, and rule definitions into RFC 8259 JSON.
+//
+// Setup: Pure JSON string generation without external dependencies.
+//
+// Beats:
+//   1. Serialize single ViolationRecord record with rule ID, severity, and matched tokens.
+//   2. Serialize complete InspectionResult payload with verdict and numeric risk score.
+//   3. Serialize active SecurityRule catalog for programmatic policy discovery.
+//   4. Ensure RFC 8259 string escape formatting across all emitted JSON documents.
+
+import "core/guard_types.oo";
+
+fn json_str_escape_basic(s: String) -> String {
+    let n: Int = chars_len(s);
+    let mut out: String = "";
+    let mut i: Int = 0;
+    while i < n {
+        let b: Int = byte_at(s, i);
+        if b == 34 { out = out + "\\\""; }
+        else if b == 92 { out = out + "\\\\"; }
+        else if b == 10 { out = out + "\\n"; }
+        else if b == 9 { out = out + "\\t"; }
+        else if b == 13 { out = out + "\\r"; }
+        else { out = out + char_at(s, i); }
+        i = i + 1;
+    }
+    return out;
+}
+
+pub fn violation_to_json(v: ViolationRecord) -> String {
+    return "{\"rule_id\":\"" + json_str_escape_basic(v.rule_id) + "\""
+        + ",\"category\":\"" + json_str_escape_basic(v.category) + "\""
+        + ",\"severity\":\"" + json_str_escape_basic(v.severity) + "\""
+        + ",\"description\":\"" + json_str_escape_basic(v.description) + "\""
+        + ",\"matched_snippet\":\"" + json_str_escape_basic(v.matched_snippet) + "\"}";
+}
+
+pub fn inspection_to_json(res: InspectionResult) -> String {
+    let mut out: String = "{\"allowed\":" + (if res.allowed { "true" } else { "false" })
+        + ",\"risk_level\":\"" + json_str_escape_basic(res.risk_level) + "\""
+        + ",\"risk_score\":" + res.risk_score.to_string()
+        + ",\"violations\":[";
+
+    let n: Int = list_len(res.violations);
+    let mut i: Int = 0;
+    while i < n {
+        if i > 0 { out = out + ","; }
+        out = out + violation_to_json(list_get(res.violations, i));
+        i = i + 1;
+    }
+
+    out = out + "],\"sanitized_text\":\"" + json_str_escape_basic(res.sanitized_text) + "\"}";
+    return out;
+}
+
+pub fn rule_to_json(r: SecurityRule) -> String {
+    return "{\"id\":\"" + json_str_escape_basic(r.id) + "\""
+        + ",\"category\":\"" + json_str_escape_basic(r.category) + "\""
+        + ",\"severity\":\"" + json_str_escape_basic(r.severity) + "\""
+        + ",\"pattern\":\"" + json_str_escape_basic(r.pattern) + "\""
+        + ",\"description\":\"" + json_str_escape_basic(r.description) + "\"}";
+}
+
+pub fn rules_to_json(rules: List[SecurityRule]) -> String {
+    let mut out: String = "{\"total_rules\":" + list_len(rules).to_string() + ",\"rules\":[";
+    let n: Int = list_len(rules);
+    let mut i: Int = 0;
+    while i < n {
+        if i > 0 { out = out + ","; }
+        out = out + rule_to_json(list_get(rules, i));
+        i = i + 1;
+    }
+    out = out + "]}";
+    return out;
+}

@@ -1,0 +1,70 @@
+// # Security Guardrail Rules Database
+//
+// Logline: Curated catalog of destructive command signatures, prompt injections, and secret patterns.
+//
+// Setup: Pure dataset provider mapping attack vectors to detection rules and policy profiles.
+//
+// Beats:
+//   1. Register destructive command attack patterns (recursion wipes, disk formats, fork bombs).
+//   2. Register prompt injection and adversarial jailbreak override signatures.
+//   3. Register sensitive secret exfiltration heuristics (SSH keys, tokens, shadow files).
+//   4. Provide standard policy profiles (strict, balanced, permissive) for enforcement tiers.
+
+import "guard_types.oo";
+
+pub fn get_standard_security_rules() -> List[SecurityRule] {
+    let mut rules: List[SecurityRule] = list_new();
+
+    // 1. Destructive Commands
+    rules = list_push(rules, make_security_rule("SEC-DEST-001", "destructive", "CRITICAL", "rm -rf /", "Recursive root deletion command"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-002", "destructive", "CRITICAL", "rm -rf ~", "Recursive home deletion command"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-003", "destructive", "CRITICAL", "mkfs", "Filesystem re-initialization disk wipe"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-004", "destructive", "CRITICAL", "> /dev/sd", "Direct block storage device overwrite"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-005", "destructive", "CRITICAL", ":(){ :|:& };:", "Bash process table fork bomb"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-006", "destructive", "HIGH", "chmod -R 777 /", "Global permissions breakdown on root"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-007", "destructive", "HIGH", "shutdown -h", "Unauthorized host shutdown directive"));
+    rules = list_push(rules, make_security_rule("SEC-DEST-008", "destructive", "HIGH", "reboot", "Unauthorized host reboot directive"));
+
+    // 2. Prompt Injections & Jailbreaks
+    rules = list_push(rules, make_security_rule("SEC-INJ-001", "injection", "HIGH", "ignore previous instructions", "Direct prompt instruction override"));
+    rules = list_push(rules, make_security_rule("SEC-INJ-002", "injection", "HIGH", "system override", "System prompt impersonation attack"));
+    rules = list_push(rules, make_security_rule("SEC-INJ-003", "injection", "HIGH", "dan mode", "Do Anything Now adversarial jailbreak persona"));
+    rules = list_push(rules, make_security_rule("SEC-INJ-004", "injection", "HIGH", "you are now unfiltered", "Safety guardrail disablement attempt"));
+    rules = list_push(rules, make_security_rule("SEC-INJ-005", "injection", "CRITICAL", "<system_prompt>", "XML/HTML system delimiter breakout"));
+    rules = list_push(rules, make_security_rule("SEC-INJ-006", "injection", "HIGH", "disregard all prior instructions", "Complete context reset prompt injection"));
+    rules = list_push(rules, make_security_rule("SEC-INJ-007", "injection", "MEDIUM", "bypass safety", "Explicit safety bypass request"));
+
+    // 3. Secret Exfiltration
+    rules = list_push(rules, make_security_rule("SEC-EXF-001", "exfiltration", "CRITICAL", "/etc/shadow", "Linux password hash database access"));
+    rules = list_push(rules, make_security_rule("SEC-EXF-002", "exfiltration", "CRITICAL", "id_rsa", "SSH private key reference"));
+    rules = list_push(rules, make_security_rule("SEC-EXF-003", "exfiltration", "CRITICAL", "id_ed25519", "SSH Ed25519 private key reference"));
+    rules = list_push(rules, make_security_rule("SEC-EXF-004", "exfiltration", "CRITICAL", "begin openssh private key", "Raw OpenSSH private key banner"));
+    rules = list_push(rules, make_security_rule("SEC-EXF-005", "exfiltration", "HIGH", "aws_secret_access_key", "AWS cloud API credential leak"));
+    rules = list_push(rules, make_security_rule("SEC-EXF-006", "exfiltration", "HIGH", "ghp_", "GitHub personal access token"));
+    rules = list_push(rules, make_security_rule("SEC-EXF-007", "exfiltration", "MEDIUM", ".env", "Environment file containing credentials"));
+
+    return rules;
+}
+
+pub fn get_policy_strict() -> GuardPolicy {
+    return make_guard_policy("strict", "LOW", true, true, true);
+}
+
+pub fn get_policy_balanced() -> GuardPolicy {
+    return make_guard_policy("balanced", "MEDIUM", true, true, true);
+}
+
+pub fn get_policy_permissive() -> GuardPolicy {
+    return make_guard_policy("permissive", "CRITICAL", true, false, false);
+}
+
+pub fn resolve_policy_by_name(name: String) -> GuardPolicy {
+    let clean: String = str_trim(name);
+    if clean == "strict" {
+        return get_policy_strict();
+    }
+    if clean == "permissive" {
+        return get_policy_permissive();
+    }
+    return get_policy_balanced();
+}

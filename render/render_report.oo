@@ -1,0 +1,99 @@
+// # Security Report Terminal Renderer
+//
+// Logline: Formats inspection verdicts, risk ratings, and violation metrics for terminal output.
+//
+// Setup: Pure terminal text formatter with ANSI security badge highlights.
+//
+// Beats:
+//   1. Construct ANSI escape styling for allowed/blocked verdicts and risk severity tiers.
+//   2. Format structured verdict banner with score meters and risk level badges.
+//   3. Render itemized violation records with category and mitigation rationale.
+//   4. Render rule inventory overview for security policy audits.
+
+import "core/guard_types.oo";
+
+fn ansi_esc() -> String {
+    return bytes_to_str(bytes_push(bytes_new(), 27));
+}
+
+fn color_green(s: String, use_color: Bool) -> String {
+    if !use_color { return s; }
+    return ansi_esc() + "[32m" + s + ansi_esc() + "[0m";
+}
+
+fn color_red_bold(s: String, use_color: Bool) -> String {
+    if !use_color { return s; }
+    return ansi_esc() + "[1;31m" + s + ansi_esc() + "[0m";
+}
+
+fn color_yellow(s: String, use_color: Bool) -> String {
+    if !use_color { return s; }
+    return ansi_esc() + "[33m" + s + ansi_esc() + "[0m";
+}
+
+fn color_cyan(s: String, use_color: Bool) -> String {
+    if !use_color { return s; }
+    return ansi_esc() + "[36m" + s + ansi_esc() + "[0m";
+}
+
+pub fn render_inspection_report(res: InspectionResult, use_color: Bool) -> String {
+    let mut out: String = "";
+
+    let verdict_str: String = if res.allowed {
+        color_green("[ALLOWED]", use_color)
+    } else {
+        color_red_bold("[BLOCKED]", use_color)
+    };
+
+    let severity_str: String = if res.risk_level == "CRITICAL" {
+        color_red_bold("[CRITICAL]", use_color)
+    } else if res.risk_level == "HIGH" {
+        color_red_bold("[HIGH]", use_color)
+    } else if res.risk_level == "MEDIUM" {
+        color_yellow("[MEDIUM]", use_color)
+    } else if res.risk_level == "LOW" {
+        color_cyan("[LOW]", use_color)
+    } else {
+        color_green("[SAFE]", use_color)
+    };
+
+    out = out + verdict_str + " Risk: " + severity_str + " (Score: " + res.risk_score.to_string() + "/100)\n";
+
+    let n_viols: Int = list_len(res.violations);
+    if n_viols > 0 {
+        out = out + "Security Violations Detected (" + n_viols.to_string() + "):\n";
+        let mut i: Int = 0;
+        while i < n_viols {
+            let v: ViolationRecord = list_get(res.violations, i);
+            out = out + "  [" + v.rule_id + "] " + v.severity + " (" + v.category + "): " + v.description + "\n";
+            out = out + "      Matched snippet: '" + v.matched_snippet + "'\n";
+            i = i + 1;
+        }
+    }
+
+    return out;
+}
+
+pub fn render_rules_list(rules: List[SecurityRule], use_color: Bool) -> String {
+    let mut out: String = "";
+    out = out + "Active Security Rules Inventory (" + list_len(rules).to_string() + " rules):\n";
+
+    let n: Int = list_len(rules);
+    let mut i: Int = 0;
+    while i < n {
+        let r: SecurityRule = list_get(rules, i);
+        let sev_badge: String = if r.severity == "CRITICAL" {
+            color_red_bold(r.severity, use_color)
+        } else if r.severity == "HIGH" {
+            color_yellow(r.severity, use_color)
+        } else {
+            color_cyan(r.severity, use_color)
+        };
+
+        out = out + "  [" + r.id + "] " + sev_badge + " (" + r.category + "): " + r.description + "\n";
+        out = out + "      Pattern: '" + r.pattern + "'\n";
+        i = i + 1;
+    }
+
+    return out;
+}

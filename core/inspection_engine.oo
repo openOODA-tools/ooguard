@@ -1,0 +1,105 @@
+// # Security Inspection and Rules Evaluation Engine
+//
+// Logline: Scans input text and command lines against active security policies and attack rules.
+//
+// Setup: Pure negative-trust scanning algorithms assessing attack severity and policy thresholds.
+//
+// Beats:
+//   1. Normalize input text with case-insensitive tokenization.
+//   2. Match attack signatures across destructive, injection, and exfiltration vectors.
+//   3. Compute composite risk score and categorical severity tier.
+//   4. Evaluate policy compliance to issue pass/block enforcement verdicts.
+
+import "guard_types.oo";
+import "rules_catalog.oo";
+
+fn to_lower_str(s: String) -> String {
+    let n: Int = chars_len(s);
+    let mut out: String = "";
+    let mut i: Int = 0;
+
+    while i < n {
+        let b: Int = byte_at(s, i);
+        if b >= 65 && b <= 90 { // 'A'..'Z'
+            let lower_b: Int = b + 32;
+            out = out + bytes_to_str(bytes_push(bytes_new(), lower_b));
+        } else {
+            out = out + char_at(s, i);
+        }
+        i = i + 1;
+    }
+
+    return out;
+}
+
+fn contains_sub(haystack: String, needle: String) -> Bool {
+    let n_len: Int = chars_len(needle);
+    let h_len: Int = chars_len(haystack);
+    if n_len == 0 { return true; }
+    if n_len > h_len { return false; }
+
+    let mut i: Int = 0;
+    while i + n_len <= h_len {
+        if str_slice(haystack, i, i + n_len) == needle {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn severity_weight(sev: String) -> Int {
+    if sev == "CRITICAL" { return 40; }
+    if sev == "HIGH" { return 25; }
+    if sev == "MEDIUM" { return 10; }
+    return 5; // LOW
+}
+
+pub fn inspect_input(input_text: String, policy: GuardPolicy) -> InspectionResult {
+    let normalized: String = to_lower_str(input_text);
+    let rules: List[SecurityRule] = get_standard_security_rules();
+    let n_rules: Int = list_len(rules);
+
+    let mut violations: List[ViolationRecord] = list_new();
+    let mut risk_score: Int = 0;
+    let mut max_sev: String = "SAFE";
+    let mut should_block: Bool = false;
+
+    let mut i: Int = 0;
+    while i < n_rules {
+        let r: SecurityRule = list_get(rules, i);
+        let rule_pat: String = to_lower_str(r.pattern);
+
+        if contains_sub(normalized, rule_pat) {
+            let v: ViolationRecord = make_violation(r.id, r.category, r.severity, r.description, r.pattern);
+            violations = list_push(violations, v);
+            risk_score = risk_score + severity_weight(r.severity);
+
+            if r.severity == "CRITICAL" {
+                max_sev = "CRITICAL";
+            } else if r.severity == "HIGH" && max_sev != "CRITICAL" {
+                max_sev = "HIGH";
+            } else if r.severity == "MEDIUM" && max_sev != "CRITICAL" && max_sev != "HIGH" {
+                max_sev = "MEDIUM";
+            } else if max_sev == "SAFE" {
+                max_sev = "LOW";
+            }
+
+            if r.category == "destructive" && policy.block_destructive {
+                should_block = true;
+            } else if r.category == "injection" && policy.block_injection {
+                should_block = true;
+            } else if r.category == "exfiltration" && policy.block_exfiltration {
+                should_block = true;
+            }
+        }
+        i = i + 1;
+    }
+
+    if risk_score > 100 {
+        risk_score = 100;
+    }
+
+    let is_allowed: Bool = !should_block;
+    return make_inspection_result(is_allowed, max_sev, risk_score, violations, input_text);
+}

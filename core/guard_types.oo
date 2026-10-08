@@ -1,0 +1,107 @@
+// # Guardrail Data Structures and Types
+//
+// Logline: Data models representing security policies, rule violations, and inspection metrics.
+//
+// Setup: Pure data definitions for capability-bounded security evaluation.
+//
+// Beats:
+//   1. Declare ViolationRecord model capturing rule ID, category, severity, and matched segment.
+//   2. Declare GuardPolicy configuration controlling enforcement strictness.
+//   3. Declare InspectionResult consolidating verdict, risk severity, and violation lists.
+//   4. Declare SecurityRule definition mapping attack signatures to mitigation rationale.
+
+pub type ViolationRecord = struct {
+    rule_id: String,
+    category: String,
+    severity: String,
+    description: String,
+    matched_snippet: String
+};
+
+pub type GuardPolicy = struct {
+    name: String,
+    max_severity_allowed: String,
+    block_destructive: Bool,
+    block_injection: Bool,
+    block_exfiltration: Bool
+};
+
+pub type InspectionResult = struct {
+    allowed: Bool,
+    risk_level: String,
+    risk_score: Int,
+    violations: List[ViolationRecord],
+    sanitized_text: String
+};
+
+pub type SecurityRule = struct {
+    id: String,
+    category: String,
+    severity: String,
+    pattern: String,
+    description: String
+};
+
+pub fn make_violation(
+    rid: String,
+    cat: String,
+    sev: String,
+    desc: String,
+    snippet: String
+) -> ViolationRecord {
+    return ViolationRecord {
+        rule_id: rid,
+        category: cat,
+        severity: sev,
+        description: desc,
+        matched_snippet: snippet
+    };
+}
+
+pub fn make_security_rule(
+    rid: String,
+    cat: String,
+    sev: String,
+    pat: String,
+    desc: String
+) -> SecurityRule {
+    return SecurityRule {
+        id: rid,
+        category: cat,
+        severity: sev,
+        pattern: pat,
+        description: desc
+    };
+}
+
+pub fn make_guard_policy(
+    p_name: String,
+    max_sev: String,
+    b_dest: Bool,
+    b_inj: Bool,
+    b_exf: Bool
+) -> GuardPolicy {
+    return GuardPolicy {
+        name: p_name,
+        max_severity_allowed: max_sev,
+        block_destructive: b_dest,
+        block_injection: b_inj,
+        block_exfiltration: b_exf
+    };
+}
+
+pub fn make_inspection_result(
+    is_allowed: Bool,
+    risk: String,
+    score: Int,
+    viols: List[ViolationRecord],
+    sanitized: String
+) -> InspectionResult {
+    return InspectionResult {
+        allowed: is_allowed,
+        risk_level: risk,
+        risk_score: score,
+        violations: viols,
+        sanitized_text: sanitized
+    };
+}

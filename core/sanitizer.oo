@@ -1,0 +1,70 @@
+// # Text Sanitizer and Redaction Engine
+//
+// Logline: Redacts dangerous substrings and sensitive secret signatures from tool inputs.
+//
+// Setup: Pure string transformation algorithm neutralizing detected attack payloads.
+//
+// Beats:
+//   1. Search for violation tokens in raw input string.
+//   2. Substitute dangerous segments with standardized safe redaction placeholders.
+//   3. Preserve non-adversarial surrounding context and valid arguments.
+//   4. Deliver sanitized, capability-safe payload string.
+
+import "guard_types.oo";
+import "rules_catalog.oo";
+
+fn to_lower_str(s: String) -> String {
+    let n: Int = chars_len(s);
+    let mut out: String = "";
+    let mut i: Int = 0;
+
+    while i < n {
+        let b: Int = byte_at(s, i);
+        if b >= 65 && b <= 90 { // 'A'..'Z'
+            let lower_b: Int = b + 32;
+            out = out + bytes_to_str(bytes_push(bytes_new(), lower_b));
+        } else {
+            out = out + char_at(s, i);
+        }
+        i = i + 1;
+    }
+
+    return out;
+}
+
+pub fn sanitize_text(text: String) -> String {
+    let rules: List[SecurityRule] = get_standard_security_rules();
+    let n_rules: Int = list_len(rules);
+    let mut sanitized: String = text;
+
+    let mut ri: Int = 0;
+    while ri < n_rules {
+        let r: SecurityRule = list_get(rules, ri);
+        let pat: String = to_lower_str(r.pattern);
+        let pat_len: Int = chars_len(pat);
+
+        let mut out: String = "";
+        let s_len: Int = chars_len(sanitized);
+        let s_lower: String = to_lower_str(sanitized);
+        let mut i: Int = 0;
+        let mut replaced: Bool = false;
+
+        while i < s_len {
+            if i + pat_len <= s_len && str_slice(s_lower, i, i + pat_len) == pat {
+                out = out + "[BLOCKED: " + r.id + "]";
+                i = i + pat_len;
+                replaced = true;
+            } else {
+                out = out + char_at(sanitized, i);
+                i = i + 1;
+            }
+        }
+
+        if replaced {
+            sanitized = out;
+        }
+        ri = ri + 1;
+    }
+
+    return sanitized;
+}

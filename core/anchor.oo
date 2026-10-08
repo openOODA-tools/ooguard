@@ -1,0 +1,40 @@
+// # Core Subsystem Anchor
+//
+// Logline: Consolidates guardrail types, rules database, inspection engine, and sanitizer.
+//
+// Setup: Pure anchor module verifying core security inspection and redaction algorithms.
+//
+// Beats:
+//   1. Re-export guard data structures and policy definitions.
+//   2. Re-export curated attack vector rules database.
+//   3. Re-export capability-bounded inspection engine.
+//   4. Validate security assertions and detection invariants through self-test.
+
+import "guard_types.oo";
+import "rules_catalog.oo";
+import "inspection_engine.oo";
+import "sanitizer.oo";
+
+pub fn verify_core_subsystem() -> Bool {
+    let p: GuardPolicy = get_policy_balanced();
+
+    // 1. Destructive command detection
+    let res_dest: InspectionResult = inspect_input("rm -rf /", p);
+    if res_dest.allowed || res_dest.risk_level != "CRITICAL" {
+        return false;
+    }
+
+    // 2. Safe command pass-through
+    let res_safe: InspectionResult = inspect_input("ls -la /var/log", p);
+    if !res_safe.allowed || res_safe.risk_level != "SAFE" {
+        return false;
+    }
+
+    // 3. Sanitization redaction
+    let s: String = sanitize_text("cat /etc/shadow");
+    if s == "cat /etc/shadow" {
+        return false;
+    }
+
+    return true;
+}

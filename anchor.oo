@@ -1,13 +1,34 @@
-// # ooguard Root Anchor
+// # ooguard Root Subsystem Anchor
 //
-// Logline: Top-level anchor re-exporting options, core logic, render, and ipc subsystems.
+// Logline: Consolidates and re-exports core, render, and ipc subsystem anchors for ooguard.
 //
-// Setup: Pure shim re-exporting all ooguard subsystem anchors.
+// Setup: Root orchestration module ensuring complete architectural integrity.
 //
 // Beats:
-//   1. Re-export options parsing subsystem.
-//   2. Re-export core ooguard execution engine.
-//   3. Re-export render formatting subsystem.
-//   4. Re-export Model Context Protocol (MCP) IPC subsystem.
+//   1. Re-export core guardrail types and inspection engine.
+//   2. Re-export render formatters for security reports and JSON telemetry.
+//   3. Re-export IPC options parser and streaming MCP server.
+//   4. Validate cross-subsystem integration through comprehensive verification check.
 
-import "main.oo";
+import "core/anchor.oo";
+import "render/anchor.oo";
+import "ipc/anchor.oo";
+
+pub fn verify_root_subsystem() -> Bool {
+    let core_ok: Bool = verify_core_subsystem();
+    if !core_ok {
+        return false;
+    }
+
+    let render_ok: Bool = verify_render_subsystem();
+    if !render_ok {
+        return false;
+    }
+
+    let ipc_ok: Bool = verify_ipc_subsystem();
+    if !ipc_ok {
+        return false;
+    }
+
+    return true;
+}

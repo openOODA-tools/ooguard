@@ -4,7 +4,7 @@
 # "Removes ooguard binary, package installations, and cache."
 #
 # Usage:
-#   curl -fsSL https://openooda-tooguard.github.io/ooguard/uninstall.sh | bash
+#   curl -fsSL https://openooda-tools.github.io/ooguard/uninstall.sh | bash
 #   or: ./uninstall.sh [options]
 #
 # Options:

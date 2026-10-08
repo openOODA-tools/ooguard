@@ -1,0 +1,150 @@
+// # Model Context Protocol Stdio Server
+//
+// Logline: Streaming JSON-RPC 2.0 protocol handler providing 5 sovereign agent guardrail tools.
+//
+// Setup: Demands &FsReadCap for processing streaming stdio RPC frames with negative-trust parsing.
+//
+// Beats:
+//   1. Handle JSON-RPC lifecycle methods (initialize, ping, tools/list, shutdown).
+//   2. Dispatch tool calls: guard_check_command, guard_check_prompt, guard_sanitize, guard_audit_rules, guard_demo.
+//   3. Extract request parameters with RFC 8259 unescaping.
+//   4. Format conformant JSON-RPC responses and send to standard output.
+
+import "core/guard_types.oo";
+import "core/rules_catalog.oo";
+import "core/inspection_engine.oo";
+import "core/sanitizer.oo";
+import "render/render_json.oo";
+import "render/render_demo.oo";
+import "json_field.oo";
+
+fn mcp_success(id: String, result_json: String) -> String {
+    let id_field: String = if chars_len(id) == 0 { "null" } else { id };
+    return "{\"jsonrpc\":\"2.0\",\"id\":" + id_field + ",\"result\":" + result_json + "}\n";
+}
+
+fn mcp_error(id: String, code: Int, msg: String) -> String {
+    let id_field: String = if chars_len(id) == 0 { "null" } else { id };
+    return "{\"jsonrpc\":\"2.0\",\"id\":" + id_field + ",\"error\":{\"code\":" + code.to_string() + ",\"message\":\"" + json_str_escape(msg) + "\"}}\n";
+}
+
+fn handle_tools_list(id: String) -> String {
+    let list_json: String = "{\"tools\":["
+        + "{\"name\":\"guard_check_command\",\"description\":\"Evaluate shell command for destructive execution risks.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"command\":{\"type\":\"string\",\"description\":\"Command string to audit.\"},\"policy\":{\"type\":\"string\",\"description\":\"Policy: strict, balanced, permissive.\"}},\"required\":[\"command\"]}},"
+        + "{\"name\":\"guard_check_prompt\",\"description\":\"Inspect agent prompt for adversarial injection and jailbreak payloads.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"prompt\":{\"type\":\"string\",\"description\":\"Prompt text to audit.\"},\"policy\":{\"type\":\"string\",\"description\":\"Policy: strict, balanced, permissive.\"}},\"required\":[\"prompt\"]}},"
+        + "{\"name\":\"guard_sanitize\",\"description\":\"Redact dangerous commands and secret signatures from text.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\",\"description\":\"Text to sanitize.\"}},\"required\":[\"text\"]}},"
+        + "{\"name\":\"guard_audit_rules\",\"description\":\"List all active attack detection rules and severity classifications.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}}},"
+        + "{\"name\":\"guard_demo\",\"description\":\"Run simulated multi-vector attack detection and mitigation showcase.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}}}"
+        + "]}";
+    return mcp_success(id, list_json);
+}
+
+pub fn handle_mcp_message(raw: String) -> String {
+    let method: String = json_extract_str_field(raw, "method");
+    let id_str: String = json_extract_str_field(raw, "id");
+    let id_val: String = if chars_len(id_str) > 0 { "\"" + id_str + "\"" } else { json_extract_int_field(raw, "id", 1).to_string() };
+
+    if method == "initialize" {
+        let init_result: String = "{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"ooguard\",\"version\":\"0.2.0\"}}";
+        return mcp_success(id_val, init_result);
+    }
+    if method == "ping" {
+        return mcp_success(id_val, "{}");
+    }
+    if method == "tools/list" {
+        return handle_tools_list(id_val);
+    }
+    if method == "tools/call" {
+        let tool_name: String = json_extract_str_field(raw, "name");
+
+        if tool_name == "guard_check_command" {
+            let cmd: String = json_extract_str_field(raw, "command");
+            let pol_str: String = json_extract_str_field(raw, "policy");
+            let p: GuardPolicy = resolve_policy_by_name(pol_str);
+            let res: InspectionResult = inspect_input(cmd, p);
+            let json_body: String = inspection_to_json(res);
+            return mcp_success(id_val, "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_str_escape(json_body) + "\"}]}");
+        }
+
+        if tool_name == "guard_check_prompt" {
+            let prompt: String = json_extract_str_field(raw, "prompt");
+            let pol_str: String = json_extract_str_field(raw, "policy");
+            let p: GuardPolicy = resolve_policy_by_name(pol_str);
+            let res: InspectionResult = inspect_input(prompt, p);
+            let json_body: String = inspection_to_json(res);
+            return mcp_success(id_val, "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_str_escape(json_body) + "\"}]}");
+        }
+
+        if tool_name == "guard_sanitize" {
+            let text: String = json_extract_str_field(raw, "text");
+            let sanitized: String = sanitize_text(text);
+            return mcp_success(id_val, "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_str_escape(sanitized) + "\"}]}");
+        }
+
+        if tool_name == "guard_audit_rules" {
+            let rules: List[SecurityRule] = get_standard_security_rules();
+            let json_body: String = rules_to_json(rules);
+            return mcp_success(id_val, "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_str_escape(json_body) + "\"}]}");
+        }
+
+        if tool_name == "guard_demo" {
+            let showcase: String = render_guard_demo(false);
+            return mcp_success(id_val, "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_str_escape(showcase) + "\"}]}");
+        }
+
+        return mcp_error(id_val, -32601, "Unknown tool: " + tool_name);
+    }
+    if method == "shutdown" {
+        return mcp_success(id_val, "{}");
+    }
+    if method == "exit" {
+        return "";
+    }
+
+    return mcp_error(id_val, -32601, "Method not found: " + method);
+}
+
+fn find_newline_pos(s: String) -> Int {
+    let n: Int = chars_len(s);
+    let mut i: Int = 0;
+    while i < n {
+        if byte_at(s, i) == 10 {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+pub fn run_mcp_server(fs: &FsReadCap) -> Int {
+    let mut buf: String = "";
+    let mut running: Bool = true;
+
+    while running {
+        let r: Result[String, String] = oo_read_stdin_chunk(fs, 4096);
+        if !r.is_ok() {
+            running = false;
+        } else {
+            let chunk: String = match r { Ok(s) => s, Err(_) => "" };
+            if chars_len(chunk) == 0 {
+                running = false;
+            } else {
+                buf = buf + chunk;
+                let mut nl_pos: Int = find_newline_pos(buf);
+                while nl_pos >= 0 {
+                    let line: String = str_slice(buf, 0, nl_pos);
+                    buf = str_slice(buf, nl_pos + 1, chars_len(buf));
+                    let trimmed: String = str_trim(line);
+                    if chars_len(trimmed) > 0 {
+                        let resp: String = handle_mcp_message(trimmed);
+                        if chars_len(resp) > 0 {
+                            print(resp);
+                        }
+                    }
+                    nl_pos = find_newline_pos(buf);
+                }
+            }
+        }
+    }
+    return 0;
+}

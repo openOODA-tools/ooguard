@@ -5,48 +5,95 @@
 // Setup: Demands explicit capability tokens and standard argument list.
 //
 // Beats:
-//   1. Parse command-line options and dispatch --help, --version, or --mcp.
-//   2. Execute capability-bounded ooguard operations.
-//   3. Format and output structured results to standard output.
+//   1. Parse command-line options and dispatch --help, --version, --test, or --mcp.
+//   2. List active security rule signatures or execute input sanitization.
+//   3. Inspect target command or prompt payload against selected security policy.
+//   4. Format and stream terminal report badges or structured JSON telemetry.
 
-fn render_help() -> String {
-    return "ooguard 0.1.0 (openOODA sovereign agent & security)\n"
-        + "usage: ooguard [options] [ARGUMENTS]...\n\n"
-        + "Prompt injection and destructive command guardrail filtering agent tool arguments.\n\n"
-        + "Options:\n"
-        + "  -h, --help           display this help and exit\n"
-        + "  -v, --version        output version information and exit\n"
-        + "      --json           output formatted as JSON Lines\n"
-        + "      --color <WHEN>   colorize output: auto, always, never [default: auto]\n"
-        + "      --theme <NAME>   override active oote palette\n"
-        + "      --mcp            run as Model Context Protocol stdio server\n";
+import "core/guard_types.oo";
+import "core/rules_catalog.oo";
+import "core/inspection_engine.oo";
+import "core/sanitizer.oo";
+import "render/render_report.oo";
+import "render/render_json.oo";
+import "render/render_demo.oo";
+import "ipc/cli_options.oo";
+import "ipc/mcp_server.oo";
+import "anchor.oo";
+
+fn run_all_tests() -> Bool {
+    return verify_root_subsystem();
 }
 
-fn render_version() -> String {
-    return "ooguard 0.1.0 (openOODA sovereign agent & security)\n";
-}
+pub fn main(
+    fr: &FsReadCap,
+    _pr: &ProcessCap,
+    _env: &EnvCap,
+    args: List[String]
+) -> Int {
+    let opts: CliOptions = parse_cli_options(args);
 
-fn main(args: List[String]) -> Int {
-    let num_args: Int = list_len(args);
-    let mut i: Int = 0;
-
-    while i < num_args {
-        let arg: String = list_get(args, i);
-        if arg == "-h" || arg == "--help" {
-            print(render_help());
+    if opts.show_help {
+        print(render_cli_help());
+        return 0;
+    }
+    if opts.show_version {
+        print(render_cli_version());
+        return 0;
+    }
+    if opts.run_test {
+        if run_all_tests() {
+            print("ooguard: internal anchor tests PASSED\n");
             return 0;
+        } else {
+            print("ooguard: internal anchor tests FAILED\n");
+            return 1;
         }
-        if arg == "-v" || arg == "--version" {
-            print(render_version());
-            return 0;
+    }
+    if opts.show_mcp {
+        return run_mcp_server(fr);
+    }
+    if opts.show_demo {
+        print(render_guard_demo(opts.use_color));
+        return 0;
+    }
+    if opts.show_rules {
+        let rules: List[SecurityRule] = get_standard_security_rules();
+        if opts.json_output {
+            print(rules_to_json(rules) + "\n");
+        } else {
+            print(render_rules_list(rules, opts.use_color));
         }
-        if arg == "--mcp" {
-            print("{\"jsonrpc\":\"2.0\",\"result\":{\"status\":\"ready\",\"tool\":\"ooguard\"}}\n");
-            return 0;
-        }
-        i = i + 1;
+        return 0;
     }
 
-    print("ooguard: sovereign capability-bounded utility ready\n");
-    return 0;
+    if opts.do_sanitize {
+        if chars_len(opts.target_text) == 0 {
+            print("ooguard: missing input text to sanitize\n");
+            return 2;
+        }
+        let sanitized: String = sanitize_text(opts.target_text);
+        print(sanitized + "\n");
+        return 0;
+    }
+
+    if chars_len(opts.target_text) == 0 {
+        print("ooguard: missing input text or command to inspect (try --help)\n");
+        return 2;
+    }
+
+    let pol: GuardPolicy = resolve_policy_by_name(opts.policy_name);
+    let res: InspectionResult = inspect_input(opts.target_text, pol);
+
+    if opts.json_output {
+        print(inspection_to_json(res) + "\n");
+    } else {
+        print(render_inspection_report(res, opts.use_color));
+    }
+
+    if res.allowed {
+        return 0;
+    } else {
+        return 1;
+    }
 }
